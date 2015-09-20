@@ -1,25 +1,28 @@
 from time import strftime, sleep
 import tempRead as temp
 import fanControl as fan
-#import humRead as hum
 import relayControl as relay
 import logg
 
 # GPIO pins that controls the relay switch
-rel1=22 # unused
-rel2=23 # unused
-rel3=24 # unused
+#rel1=22 # unused
+#rel2=23 # unused
+#rel3=24 # unused
 rel4=25 # Light
 
+#D18B20 temp sensors
+sens1='28-000006876fc9'
+sens2='28-00000688212c'
+sens3='28-0000068944b8'
+
 # Status variables 
-statusRel1=False
-statusRel2=False
-statusRel3=False
+#statusRel1=False
+#statusRel2=False
+#statusRel3=False
 statusRel4=False
 varSpeed=0
 
 # The thought here is that when the temp reaches maxTemp, then maxSpeed is activated
-maxDiff=4
 maxTemp=30
 maxSpeed=70
 
@@ -27,19 +30,17 @@ maxSpeed=70
 lightOn=6
 lightOff=22
 
+# How often to run the script in seconds
+interval=60
+
 def adjustFan(intake, exhaust):
 	global varSpeed
-	intake=int(intake)
-	exhaust=int(exhaust)
-	diff=exhaust-intake
-	diff=int(diff)
-
-	if intake == varSpeed:
+	if int(intake*1.5) == varSpeed:
 		return
-	elif intake >= maxTemp or diff >= maxDiff:
+	elif intake >= maxTemp:
 		speed=maxSpeed
 	else:
-		speed=intake
+		speed=int(intake*1.5)
 	fan.setSpeed(speed)
 	varSpeed=speed
 	logg.inputSYS("Fanspeed is {!s}".format(speed))
@@ -52,11 +53,14 @@ def adjustLight(time):
 	if time > lightOn and time < lightOff:
 		if statusRel4:
 			return
-		check=True
+		switch=True
 	else:
-		check=False
-	relay.set(rel4, check)
-	statusRel4=check
+		if not statusRel4:
+			return
+		switch=False
+
+	relay.set(rel4, switch)
+	statusRel4=switch
 	logg.inputSYS("Light is {!s}".format(statusRel4))
 
 def main():
@@ -64,14 +68,14 @@ def main():
 	while True:
 		try:
 			# The D18B20 sensors need to be read every time the while loop executes
-			intake = float(temp.read('28-000006876fc9'))
-			water = float(temp.read('28-00000688212c'))
-			exhaust = float(temp.read('28-0000068944b8'))
+			intake = float(temp.read(sens1))
+			water = float(temp.read(sens2))
+			exhaust = float(temp.read(sens3))
 
-			adjustFan(intake, exhaust)
+			adjustFan(int(intake), int(exhaust))
 			adjustLight(strftime("%H"))
 			logg.inputTMP("{!s}, {!s}, {!s}".format(intake, water, exhaust))
-			sleep(60)
+			sleep(interval)
 		except KeyboardInterrupt:
 			logg.inputSYS("Program terminated by user!")
 			exit()
