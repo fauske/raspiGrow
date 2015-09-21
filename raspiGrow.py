@@ -1,81 +1,96 @@
+#If running this script with python 2.7, try to change configparser to ConfigParser
+
 from time import strftime, sleep
+import configparser
 import tempRead as temp
 import fanControl as fan
 import relayControl as relay
 import logg
 
-# GPIO pins that controls the relay switch
-#rel1=22 # unused
-#rel2=23 # unused
-#rel3=24 # unused
-rel4=25 # Light
+cfg = configparser.ConfigParser()
+cfg._interpolation = configparser.ExtendedInterpolation()
+confFile='config.ini'
+cfg.read(confFile)
 
-#D18B20 temp sensors
-sens1='28-000006876fc9'
-sens2='28-00000688212c'
-sens3='28-0000068944b8'
-
-# Status variables 
-#statusRel1=False
-#statusRel2=False
-#statusRel3=False
-statusRel4=False
-varSpeed=0
-
-# The thought here is that when the temp reaches maxTemp, then maxSpeed is activated
-maxTemp=30
-maxSpeed=70
-
-# In the example the script turns on at 6 in the morning and off at 10 in the evening
-lightOn=6
-lightOff=22
-
-# How often to run the script in seconds
-interval=60
-
-def adjustFan(intake, exhaust):
-	global varSpeed
-	if int(intake*1.5) == varSpeed:
-		return
-	elif intake >= maxTemp:
-		speed=maxSpeed
+def adjustFan(temp1):
+	maxTemp = int(cfg.get("Fan", 'maxtemp'))
+	if temp1 >= maxTemp:
+		speed=temp1*2
 	else:
-		speed=int(intake*1.5)
+		speed=int(temp1*1.5)
 	fan.setSpeed(speed)
-	varSpeed=speed
-	logg.inputSYS("Fanspeed is {!s}".format(speed))
+	return speed
 
-def adjustLight(time):
-	
-	time=int(time)
-	global rel4, statusRel4
-	
-	if time > lightOn and time < lightOff:
-		if statusRel4:
-			return
-		switch=True
+def lightSwitch(time, lightStatus):
+	sunrise = int(cfg.get("Light", 'sunrise'))
+	sunset = int(cfg.get("Light", 'sunset'))
+	relN = int(cfg.get("Light", 'relay'))
+
+	if time > sunrise and time < sunset:
+		check=True
+		if not lightStatus:
+			adjustLight(relN, check)
 	else:
-		if not statusRel4:
-			return
-		switch=False
+		check=False
+		if lightStatus:
+			adjustLight(relN, check)
+	return check
 
-	relay.set(rel4, switch)
-	statusRel4=switch
-	logg.inputSYS("Light is {!s}".format(statusRel4))
+def adjustLight(relN, switch):	
+	relay.set(relN, switch)
+
+def ConfigSectionMap(section):
+	dict1 = {}
+	options = config.options(section)
+	for option in options:
+		try:
+			dict1[option] = config.get(section, option)
+			if dict1[option] == -1:
+				DebugPrint("skip: %s" % option)
+		except:
+			print("exception on %s!" % option)
+			dict1[option] = None
+	return dict1
+
+def reReadConfig():
+	cfg.read(confFile)
 
 def main():
 	logg.inputSYS("Started the raspiGrow system")
+	sens1 = cfg.get("Sensors", 'sensor1')
+	sens2 = cfg.get("Sensors", 'sensor2')
+	sens3 = cfg.get("Sensors", 'sensor3')
+
+	lightStatus=False
+	fanStatus=0
+
 	while True:
 		try:
-			# The D18B20 sensors need to be read every time the while loop executes
+			# Get settings and values
+			reReadConfig()
 			intake = float(temp.read(sens1))
 			water = float(temp.read(sens2))
 			exhaust = float(temp.read(sens3))
+			maxtemp = int(cfg.get("Fan", 'maxtemp'))
+			relN = int(cfg.get("Light", 'relay'))
+			time=int(strftime("%H"))
 
-			adjustFan(int(intake), int(exhaust))
-			adjustLight(strftime("%H"))
+
+
+			check = lightSwitch(time, lightStatus)
+			if check != lightStatus:
+				logg.inputSYS("Light is "+str(check))
+			lightStatus=check
+
+			check=int(intake)
+			if check*1.5 != fanStatus or check*2 != fanStatus:
+				adjustFan(check)
+				flog="Fanspeed is: "+str(fanStatus)+"%"
+				logg.inputSYS(flog)
+			fanStatus=check
+
 			logg.inputTMP("{!s}, {!s}, {!s}".format(intake, water, exhaust))
-			sleep(interval)
+			sleep(int(cfg.get("System", 'interval')))
 		except KeyboardInterrupt:
 			logg.inputSYS("Program terminated by user!")
 			exit()
