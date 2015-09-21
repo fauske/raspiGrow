@@ -1,5 +1,11 @@
-#If running this script with python 2.7, try to change configparser to ConfigParser
-
+#!/usr/bin/env python
+#title          :raspiGrow.py
+#description    :Automated hydroponic system.
+#author         :O.A.Fauske
+#date           :21.09.2015
+#usage          :python3 raspiGrow.py
+#python_version :3.0
+#==============================================================================
 from time import strftime, sleep
 import configparser
 import tempRead as temp
@@ -16,8 +22,10 @@ def adjustFan(temp1):
 	maxTemp = int(cfg.get("Fan", 'maxtemp'))
 	if temp1 >= maxTemp:
 		speed=temp1*2
-	else:
+	elif temp1 >= 25:
 		speed=int(temp1*1.5)
+	else:
+		speed=int(temp1)
 	fan.setSpeed(speed)
 	return speed
 
@@ -36,7 +44,7 @@ def lightSwitch(time, lightStatus):
 			adjustLight(relN, check)
 	return check
 
-def adjustLight(relN, switch):	
+def adjustLight(relN, switch):  
 	relay.set(relN, switch)
 
 def ConfigSectionMap(section):
@@ -60,7 +68,6 @@ def main():
 	sens1 = cfg.get("Sensors", 'sensor1')
 	sens2 = cfg.get("Sensors", 'sensor2')
 	sens3 = cfg.get("Sensors", 'sensor3')
-
 	lightStatus=False
 	fanStatus=0
 
@@ -75,15 +82,13 @@ def main():
 			relN = int(cfg.get("Light", 'relay'))
 			time=int(strftime("%H"))
 
-
-
 			check = lightSwitch(time, lightStatus)
 			if check != lightStatus:
 				logg.inputSYS("Light is "+str(check))
 			lightStatus=check
 
 			check=int(intake)
-			if check*1.5 != fanStatus or check*2 != fanStatus:
+			if check*1.5 != fanStatus and check*2 != fanStatus:
 				adjustFan(check)
 				flog="Fanspeed is: "+str(fanStatus)+"%"
 				logg.inputSYS(flog)
