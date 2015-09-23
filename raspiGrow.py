@@ -6,6 +6,7 @@
 #usage          :python3 raspiGrow.py
 #python_version :3.0
 #==============================================================================
+
 from time import strftime, sleep
 import configparser
 import tempRead as temp
@@ -18,15 +19,18 @@ cfg._interpolation = configparser.ExtendedInterpolation()
 confFile='config.ini'
 cfg.read(confFile)
 
-def adjustFan(temp1):
+def adjustFan(temp, status):
 	maxTemp = int(cfg.get("Fan", 'maxtemp'))
-	if temp1 >= maxTemp:
-		speed=temp1*2
-	elif temp1 >= 25:
-		speed=int(temp1*1.5)
+	if temp >= maxTemp:
+		speed=int(temp*2)
+		if speed == status:
+			return speed
 	else:
-		speed=int(temp1)
+		speed=int(temp*1.5)
+		if speed == status:
+			return speed
 	fan.setSpeed(speed)
+	logWrite("Fans is: "+str(speed)+"%")
 	return speed
 
 def lightSwitch(time, lightStatus):
@@ -34,17 +38,17 @@ def lightSwitch(time, lightStatus):
 	sunset = int(cfg.get("Light", 'sunset'))
 	relN = int(cfg.get("Light", 'relay'))
 
-	if time > sunrise and time < sunset:
+	if time >= sunrise and time <= sunset:
 		check=True
-		if not lightStatus:
-			adjustLight(relN, check)
 	else:
 		check=False
-		if lightStatus:
-			adjustLight(relN, check)
+
+	if check != lightStatus:
+		adjustLight(relN, check)
+		logWrite("Light is: "+str(check))
 	return check
 
-def adjustLight(relN, switch):  
+def adjustLight(relN, switch):	
 	relay.set(relN, switch)
 
 def ConfigSectionMap(section):
@@ -63,12 +67,16 @@ def ConfigSectionMap(section):
 def reReadConfig():
 	cfg.read(confFile)
 
+def logWrite(string):
+	logg.inputSYS(string)
+
 def main():
-	logg.inputSYS("Started the raspiGrow system")
+	logWrite("Started the raspiGrow system")
 	sens1 = cfg.get("Sensors", 'sensor1')
 	sens2 = cfg.get("Sensors", 'sensor2')
 	sens3 = cfg.get("Sensors", 'sensor3')
-	lightStatus=False
+
+	lightStatus=None
 	fanStatus=0
 
 	while True:
@@ -78,24 +86,18 @@ def main():
 			intake = float(temp.read(sens1))
 			water = float(temp.read(sens2))
 			exhaust = float(temp.read(sens3))
-			maxtemp = int(cfg.get("Fan", 'maxtemp'))
-			relN = int(cfg.get("Light", 'relay'))
 			time=int(strftime("%H"))
 
-			check = lightSwitch(time, lightStatus)
-			if check != lightStatus:
-				logg.inputSYS("Light is "+str(check))
-			lightStatus=check
+			# Light commands
+			lightStatus = lightSwitch(time, lightStatus)
 
-			check=int(intake)
-			if check*1.5 != fanStatus and check*2 != fanStatus:
-				adjustFan(check)
-				flog="Fanspeed is: "+str(fanStatus)+"%"
-				logg.inputSYS(flog)
-			fanStatus=check
+			# Fan commands
+			fanStatus = adjustFan(int(intake), fanStatus)
 
+			# Temperature log
 			logg.inputTMP("{!s}, {!s}, {!s}".format(intake, water, exhaust))
 			sleep(int(cfg.get("System", 'interval')))
+
 		except KeyboardInterrupt:
 			logg.inputSYS("Program terminated by user!")
 			exit()
