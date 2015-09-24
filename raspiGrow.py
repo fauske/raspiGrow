@@ -16,7 +16,7 @@ import logg
 
 cfg = configparser.ConfigParser()
 cfg._interpolation = configparser.ExtendedInterpolation()
-confFile='config.ini'
+confFile='/etc/raspiGrow/config.cfg'
 cfg.read(confFile)
 
 def adjustFan(temp, status):
@@ -95,7 +95,7 @@ def main():
 			fanStatus = adjustFan(int(intake), fanStatus)
 
 			# Temperature log
-			logg.inputTMP("{!s}, {!s}, {!s}".format(intake, water, exhaust))
+			logg.inputTMP("{!s},{!s},{!s}".format(intake, water, exhaust))
 			sleep(int(cfg.get("System", 'interval')))
 
 		except KeyboardInterrupt:

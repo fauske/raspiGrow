@@ -6,7 +6,7 @@ def write(file, input, check=False):
 		with open(file, 'a') as f:
 			f.write("|--- Log created {!s}\n".format(strftime("%d.%m.%y %H:%M ---|")))
 			if check:
-				f.write("{!s}\n".format("Time, Intake, Water, Exhaust"))
+				f.write("{!s}\n".format("Time,Intake,Water,Exhaust"))
 	with open(file, 'a') as f:
 		f.write("{!s} {!s}\n".format(strftime("%H:%M "), input))
 	f.close()
